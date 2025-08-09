@@ -1,0 +1,23 @@
+[package]
+authors = ["Gary Velcich"]
+description = "Excelv12 api interface to write UDFs."
+edition = "2024"
+name = "xladd-core"
+version = "0.1.0"
+
+# [features]
+# default = ["use_ndarray"]
+# use_ndarray = ["ndarray"]
+
+[dependencies]
+bincode = "2.0.1"
+lazy_static = "1.4.0"
+log = "0.4.8"
+# ndarray = { version = "^0.16.1", optional = true }
+thiserror = "2.0.12"
+serde = "^1"
+serde_derive = "^1"
+widestring = "*"
+winapi = { version = "*", features = ["winuser", "libloaderapi", "debugapi"] }
+inventory = "0.3"
+libc = "0.2.174"

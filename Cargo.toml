@@ -1,0 +1,21 @@
+[workspace]
+members = [
+    ".",
+    "xladd-core",
+    "xladd-derive"]
+
+[package]
+name = "xll_rust"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+inventory = "0.3"
+log = "0.4.8"
+# ndarray = "0.16.1"
+xladd-core = { path = "xladd-core" }
+xladd-derive = { path = "xladd-derive" }
+# xladd-derive = { path = "xladd-derive" , features=["use_ndarray"] }

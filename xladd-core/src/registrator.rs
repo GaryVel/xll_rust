@@ -1,0 +1,140 @@
+use crate::entrypoint::excel12;
+use crate::variant::Variant;
+use crate::xlcall::{xlGetName, xlfRegister};
+use log::debug;
+
+// Re-export inventory for the macro to use
+pub use inventory;
+
+// Collect all function registrations
+inventory::collect!(FunctionRegistration);
+
+pub struct ArgInfo {
+    pub name: &'static str,
+    pub description: &'static str,
+    pub excel_type: &'static str,
+}
+
+pub struct FunctionRegistration {
+    pub xl_name: &'static str,
+    pub arg_types: &'static str,
+    pub arg_names: &'static str,
+    pub category: &'static str,
+    pub description: &'static str,
+    pub arg_infos: &'static [ArgInfo],  // Changed from Vec<ArgInfo>
+}
+
+/// Allow xlls to register their exported functions with Excel so they can be
+/// used in a spreadsheet or macro. These functions can only be called from
+/// within an implementation of xlAutoOpen.
+pub struct Reg {
+    dll_name: Variant,
+}
+
+impl Reg {
+    /// Creates a registrator. Internally, it finds the name of this dll.
+    pub fn new() -> Reg {
+        let dll_name = excel12(xlGetName, &mut []);
+        debug_print(&format!("addin loaded from: {}", dll_name));
+
+        Reg { dll_name }
+    }
+
+    /// Adds an exported function to Excel. This function can only be called from within
+    /// xlAutoOpen.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - The exported name and also the name that appears in Excel
+    /// * `arg_types` - A string describing the return type followed by the arguments.
+    /// * `arg_text` - A string showing the arguments in human-readable form
+    /// * `category` - Either a built-in category such as Information or your own choice
+    /// * `help_text` - A short help description for the function wizard
+    /// * `arg_help` - An optional slice of strings showing detailed help for each argument
+    ///
+    /// Our recommendation is that the name has some prefix that is unique to your addin,
+    /// to prevent clashes with other addins. The arg_types string has a letter for the
+    /// return type followed by letters for each argument. The letters are defined in the
+    /// Excel SDK, but useful ones include:
+    ///
+    /// * `Q` - XLOPER12 Variant argument
+    /// * `X` - Pending XLOPER12 for async use
+    /// * `A` - Boolean (actually i16 that is zero or one)
+    /// * `B` - Double (f64)
+    /// * `J` - Integer (i32)
+    ///
+    /// The string and array types are geared more for a C or C++ user. My recommendation is
+    /// that for these arguments, you accept a Q argument, then use the methods on the
+    /// Variant type to unpack them. This may be better for other arguments as well, as you
+    /// then have control over the coercion and error handling where the arguments are the
+    /// wrong type.
+    ///
+    /// The string may be terminated by the following special characters
+    ///
+    /// * `!` - Marks the function as volatile, so it is assumed to need calling every calc
+    /// * `$` - Marks the function as threadsafe, so it can be called from any thread
+    /// * `#` - Allows the function to be called even before the args are evaluated
+    ///
+    /// # Example
+    ///
+    /// reg.add("myAdd", "QQQ$", "first, second", "MyCategory", "Adds two numbers or ranges"
+    ///     &["help for first arg", "help for second arg"]);
+    ///
+    pub fn add(
+        &self,
+        name: &str,
+        arg_types: &str,
+        arg_text: &str,
+        category: &str,
+        help_text: &str,
+        arg_infos: &[ArgInfo],
+    ) {
+        let mut opers = vec![
+            self.dll_name.clone(),
+            Variant::from(name),
+            Variant::from(arg_types),
+            Variant::from(name),
+            Variant::from(arg_text),
+            Variant::from(1), // type 1 means useable anywhere
+            Variant::from(category),
+            Variant::missing(), // no shortcut
+            Variant::missing(), // no help url
+            Variant::from(help_text),
+        ];
+
+        // Add argument descriptions using the structured approach
+        for arg_info in arg_infos.iter() {
+            // Use a format similar to XLW: just the description
+            opers.push(Variant::from(arg_info.description));
+        }
+
+        let result = excel12(xlfRegister, opers.as_mut_slice());
+        debug_print(&format!("Registered {} with structured args: result = {}", name, result));
+    }
+    /// Registers all functions that have been collected by the inventory macro.
+    pub fn register_all_functions(&self) {
+        for registration in inventory::iter::<FunctionRegistration> {
+            self.add(
+                registration.xl_name,
+                registration.arg_types,
+                registration.arg_names,
+                registration.category,
+                registration.description,
+                registration.arg_infos  // &[ArgInfo] rather than &Vec<ArgInfo>
+            );
+        }
+    }
+    
+}
+
+impl Default for Reg {
+    fn default() -> Reg {
+        let dll_name = excel12(xlGetName, &mut []);
+        debug_print(&format!("addin loaded from: {}", dll_name));
+        Reg { dll_name }
+    }
+}
+
+pub(crate) fn debug_print(message: &str) {
+    debug!("{}", message);
+}
