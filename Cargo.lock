@@ -247,6 +247,7 @@ version = "0.1.0"
 dependencies = [
  "inventory",
  "log",
+ "thiserror",
  "xladd-core",
  "xladd-derive",
 ]
