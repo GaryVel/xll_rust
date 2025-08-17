@@ -4,38 +4,60 @@
 use crate::registrator::debug_print;
 use crate::variant::Variant;
 use crate::xlcall::{xlFree, xlretFailed, LPXLOPER12, XLOPER12};
-use std::ffi::CStr;
-use std::mem;
-use std::ptr;
-use widestring::U16CString;
-use winapi::shared::minwindef::HMODULE;
-use winapi::um::libloaderapi::{GetModuleHandleW, GetProcAddress};
-use std::sync::Once;
 use libc::c_int;
 
-const EXCEL12ENTRYPT: &[u8] = b"MdCallBack12\0";
-const XLCALL32DLL: &str = "XLCall32";
-const XLCALL32ENTRYPT: &[u8] = b"GetExcel12EntryPt\0";
-type EXCEL12PROC = extern "stdcall" fn(
+use std::{mem, ptr, sync::OnceLock};
+use windows::{
+    core::{s, w, PCWSTR},
+    Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress},
+};
+
+type EXCEL12PROC = extern "system" fn(
     xlfn: c_int,
     count: c_int,
     rgpxloper12: *const LPXLOPER12,
     xloper12res: LPXLOPER12,
 ) -> c_int;
-type FNGETEXCEL12ENTRYPT = extern "stdcall" fn() -> usize;
 
-static INIT: Once = Once::new();
-static mut XLCALL_HMODULE: HMODULE = ptr::null_mut();
-static mut PEXCEL12: usize = 0;
+// Excel12 entry point thunk provider (returns the Excel12 pointer as usize).
+type FNGETEXCEL12ENTRYPT = unsafe extern "C" fn() -> usize;
+
+/// Cached Excel12 function pointer (usize).
+static PEXCEL12: OnceLock<usize> = OnceLock::new();
+
+/// Resolve and cache the Excel12 entry point.
+/// Returns the Excel12 function pointer (0 if not found).
+fn fetch_excel12_entry_pt() -> usize {
+    *PEXCEL12.get_or_init(|| unsafe {
+        let mut pexcel12: usize = 0;
+
+        // Try XLCALL32.DLL first
+        if let Ok(hmod) = GetModuleHandleW(w!("XLCALL32.DLL")) {
+            if let Some(proc_addr) = GetProcAddress(hmod, s!("MdCallBack12")) {
+                let get_excel12: FNGETEXCEL12ENTRYPT = mem::transmute(proc_addr);
+                let entry_pt = get_excel12();
+                if entry_pt != 0 {
+                    pexcel12 = entry_pt;
+                }
+            }
+        }
+
+        // Fallback: resolve Excel12 directly from the current process
+        if pexcel12 == 0 {
+            if let Ok(hmod) = GetModuleHandleW(PCWSTR::null()) {
+                if let Some(proc_addr) = GetProcAddress(hmod, s!("Excel12")) {
+                    pexcel12 = proc_addr as usize;
+                }
+            }
+        }
+
+        pexcel12
+    })
+}
 
 /// Call into Excel, passing a function number as defined in xlcall and a slice
 /// of Variant, and returning a Variant. To find out the number and type of
 /// parameters and the expected result, please consult the Excel SDK documentation.
-///
-/// Note that this is a slightly inefficient call, in that it allocates a vector
-/// of pointers. For example, if you have a single argument, it is faster to invoke
-/// the single arg version.
-
 pub fn excel12(xlfn: u32, opers: &mut [Variant]) -> Variant {
     debug_print(&format!("FuncID:{}, {} args)", xlfn, opers.len()));
     let mut args: Vec<LPXLOPER12> = Vec::with_capacity(opers.len());
@@ -60,60 +82,30 @@ pub fn excel12_1(xlfn: u32, mut oper: Variant) -> Variant {
     result
 }
 
-fn fetch_excel12_entry_pt() {
-    INIT.call_once(|| {
-        unsafe {
-            if XLCALL_HMODULE.is_null() {
-                let wcstr = U16CString::from_str(XLCALL32DLL).unwrap();
-                XLCALL_HMODULE = GetModuleHandleW(wcstr.as_ptr());
-                if !XLCALL_HMODULE.is_null() {
-                    let cstr = CStr::from_bytes_with_nul(XLCALL32ENTRYPT).unwrap();
-                    let entry_pt: usize = GetProcAddress(XLCALL_HMODULE, cstr.as_ptr()) as usize;
-                    if entry_pt != 0 {
-                        PEXCEL12 = mem::transmute::<usize, FNGETEXCEL12ENTRYPT>(entry_pt)();
-                    }
-                }
-            }
-
-            if PEXCEL12 == 0 {
-                XLCALL_HMODULE = GetModuleHandleW(ptr::null());
-                if !XLCALL_HMODULE.is_null() {
-                    let cstr = CStr::from_bytes_with_nul(EXCEL12ENTRYPT).unwrap();
-
-                    PEXCEL12 = GetProcAddress(XLCALL_HMODULE, cstr.as_ptr()) as usize;
-                }
-            }
-        }
-    });
-}
-
 pub fn excel12v(xlfn: i32, oper_res: &mut XLOPER12, opers: &[LPXLOPER12]) -> i32 {
-    fetch_excel12_entry_pt();
+    let pexcel12 = fetch_excel12_entry_pt();
 
     unsafe {
-        if PEXCEL12 == 0 {
+        if pexcel12 == 0 {
             xlretFailed as i32
         } else {
             let p = opers.as_ptr();
             let len = opers.len();
-            mem::transmute::<usize, EXCEL12PROC>(PEXCEL12)(xlfn, len as i32, p, oper_res)
+            let f: EXCEL12PROC = mem::transmute(pexcel12);
+            f(xlfn, len as i32, p, oper_res)
         }
     }
 }
 
 pub fn excel_free(xloper: LPXLOPER12) -> i32 {
-    fetch_excel12_entry_pt();
+    let pexcel12 = fetch_excel12_entry_pt();
 
     unsafe {
-        if PEXCEL12 == 0 {
+        if pexcel12 == 0 {
             xlretFailed as i32
         } else {
-            mem::transmute::<usize, EXCEL12PROC>(PEXCEL12)(
-                xlFree as i32,
-                1,
-                &xloper,
-                ptr::null_mut(),
-            )
+            let f: EXCEL12PROC = mem::transmute(pexcel12);
+            f(xlFree as i32, 1, &xloper, ptr::null_mut())
         }
     }
 }

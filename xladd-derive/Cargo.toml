@@ -8,10 +8,10 @@ edition = "2024"
 proc-macro = true
 
 [dependencies]
-com = { version = "0.6.0", features = ["production"] }
+# com = { version = "0.6.0", features = ["production"] }
 proc-macro2 = "1"
 quote = "1"
 syn = { version = "2.0.104", features = ["full", "extra-traits"] }
-widestring = "1.2.0"
-winapi = {version = "0.3", features = ["oaidl", "combaseapi", "oleauto"]}
+# widestring = "1.2.0"
+# winapi = {version = "0.3", features = ["oaidl", "combaseapi", "oleauto"]}
 xladd-core = { path = "../xladd-core" }

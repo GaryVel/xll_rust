@@ -4,8 +4,8 @@ pub mod variant;
 pub mod xlauto;
 pub mod xlcall;
 
-extern crate widestring;
-extern crate winapi;
+// extern crate widestring;
+// extern crate winapi;
 
 pub use registrator::Reg;
 // use thiserror::Error;

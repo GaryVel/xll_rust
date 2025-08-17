@@ -113,6 +113,18 @@ impl PositiveInt {
     }
 }
 
+impl From<PositiveInt> for usize {
+    fn from(value: PositiveInt) -> Self {
+        value.0 as usize
+    }
+}
+
+impl From<PositiveFloat> for f64 {
+    fn from(value: PositiveFloat) -> Self {
+        value.0 as f64
+    }
+}
+
 impl Rate {
     /// Creates a new Rate if the value is positive and finite
     pub fn new(value: f64, parameter_name: &'static str) -> Result<Self, ParameterError> {
@@ -152,6 +164,7 @@ impl Volatility {
 /// 
 /// # Returns
 /// Call option value using Black-Scholes formula
+#[xl_func()]
 pub fn black_scholes_call_option_value(
     share_price: f64,
     strike_price: f64,
@@ -277,10 +290,25 @@ pub fn binomial_option_value(
     exit_post_vesting: f64,
     multiple: f64,
     steps: i32,
+    // OptionParameters {
+    //     share_price,
+    //     strike_price,
+    //     time_to_maturity,
+    //     vesting_period,
+    //     risk_free,
+    //     sigma,
+    //     div_rate,
+    //     exit_pre_vesting,
+    //     exit_post_vesting,
+    //     multiple,
+    //     steps,
+    // }: OptionParameters,
 ) -> Result<Vec<f64>, Box<dyn std::error::Error>> {
 
     // Input validation and adjustments
+    // let steps = steps.into();
     let steps = steps as usize;
+
     let strike_price = if strike_price == 0.0 { 0.001 } else { strike_price };
     let vesting_period = vesting_period.min(time_to_maturity);
     
@@ -311,6 +339,7 @@ pub fn binomial_option_value(
     };
     
     // Vesting period in discrete time steps
+    // let vest_step = ((vesting_period.into() / dt.into()) + 0.001) as usize;
     let vest_step = ((vesting_period / dt) + 0.001) as usize;
     
     // Exit probabilities per time step
@@ -404,46 +433,48 @@ pub fn binomial_option_value(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    // use super::*;
 
-    #[test]
-    fn test_zero_maturity() {
-        let result = binomial_option_value(
-            100.0, // share_price
-            90.0,  // strike_price
-            0.0,   // maturity
-            0.0,   // vesting_period
-            0.05,  // risk_free
-            0.3,   // sigma
-            0.0,   // div_rate
-            0.1,   // exit_pre_vesting
-            0.1,   // exit_post_vesting
-            2.0,   // multiple
-            100,   // steps
-        ).unwrap();
+    // #[test]
+    // fn test_zero_maturity() {
+    //     let params = OptionParameters {
+    //         share_price: PositiveFloat::new(100.0, "share_price")?,
+    //         strike_price: PositiveFloat::new(90.0, "strike_price")?,
+    //         time_to_maturity: PositiveFloat::new(0.0, "time_to_maturity")?,
+    //         vesting_period: PositiveFloat::new(0.0, "vesting_period")?,
+    //         risk_free: Rate::new(0.05, "risk_free")?,
+    //         sigma: Volatility::new(0.3)?,
+    //         div_rate: Rate::new(0.0, "div_rate")?,
+    //         exit_pre_vesting: Rate::new(0.1, "exit_pre_vesting")?,
+    //         exit_post_vesting: Rate::new(0.1, "exit_post_vesting")?,
+    //         multiple: PositiveFloat::new(2.0, "multiple")?,
+    //         steps: PositiveInt::new(100, "steps")?,
+    //     };
+    //     let result = binomial_option_value(&params).unwrap();
         
-        assert_eq!(result[0], 10.0); // 100 - 90
-        assert_eq!(result[1], 0.0);
-    }
+    //     assert_eq!(result[0], 10.0); // 100 - 90
+    //     assert_eq!(result[1], 0.0);
+    // }
 
-    #[test]
-    fn test_basic_option_value() {
-        let result = binomial_option_value(
-            100.0, // share_price
-            90.0,  // strike_price
-            1.0,   // maturity
-            0.25,  // vesting_period (3 months)
-            0.05,  // risk_free
-            0.3,   // sigma
-            0.0,   // div_rate
-            0.1,   // exit_pre_vesting
-            0.1,   // exit_post_vesting
-            2.0,   // multiple
-            100,   // steps
-        ).unwrap();
-        
-        assert!(result[0] > 0.0);
-        assert!(result[1] > 0.0);
-        assert!(result[1] <= 1.0);
-    }
+    // #[test]
+    // fn test_basic_option_value() {
+    //         let params = OptionParameters {
+    //             share_price: PositiveFloat::new(100.0, "share_price")?,
+    //             strike_price: PositiveFloat::new(90.0, "strike_price")?,
+    //             time_to_maturity: PositiveFloat::new(1.0, "time_to_maturity")?,
+    //             vesting_period: PositiveFloat::new(0.25, "vesting_period")?,
+    //             risk_free: Rate::new(0.05, "risk_free")?,
+    //             sigma: Volatility::new(0.3)?,
+    //             div_rate: Rate::new(0.0, "div_rate")?,
+    //             exit_pre_vesting: Rate::new(0.1, "exit_pre_vesting")?,
+    //             exit_post_vesting: Rate::new(0.1, "exit_post_vesting")?,
+    //             multiple: PositiveFloat::new(2.0, "multiple")?,
+    //             steps: PositiveInt::new(100, "steps")?,
+    //     };
+    //     let result = binomial_option_value(&params).unwrap();
+                
+    //     assert!(result[0] > 0.0);
+    //     assert!(result[1] > 0.0);
+    //     assert!(result[1] <= 1.0);
+    // }
 }

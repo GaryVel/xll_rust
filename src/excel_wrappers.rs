@@ -1,6 +1,6 @@
 use xladd_derive::xl_func;
 use crate::actuarial::option_pricing;
-use crate::actuarial::option_pricing::{OptionParameters, PositiveFloat, PositiveInt, Rate, Volatility};
+// use crate::actuarial::option_pricing::{OptionParameters, PositiveFloat, PositiveInt, Rate, Volatility};
 
 // use ndarray::Array2;
 
@@ -73,26 +73,32 @@ fn option_value_optimal(
     n: f64,
 ) -> Result<Vec<f64>, Box<dyn std::error::Error>> {
     let multiple: f64 = 1e7;
-    let params = OptionParameters {
-        share_price: PositiveFloat(share_price),
-        strike_price: PositiveFloat(strike_price),
-        time_to_maturity: PositiveFloat(time_to_maturity),
-        vesting_period: PositiveFloat(vesting_period),
-        risk_free: Rate(risk_free),
-        sigma: Volatility(sigma),
-        div_rate: Rate(divrate),
-        exit_pre_vesting: Rate(exit_pre_vesting),
-        exit_post_vesting: Rate(exit_post_vesting),
-        multiple: PositiveFloat(multiple),
-        steps: PositiveInt(n as usize), // Assuming n is a positive integer
-    };
+    // let params = OptionParameters {
+    //     share_price: PositiveFloat(share_price),
+    //     strike_price: PositiveFloat(strike_price),
+    //     time_to_maturity: PositiveFloat(time_to_maturity),
+    //     vesting_period: PositiveFloat(vesting_period),
+    //     risk_free: Rate(risk_free),
+    //     sigma: Volatility(sigma),
+    //     div_rate: Rate(divrate),
+    //     exit_pre_vesting: Rate(exit_pre_vesting),
+    //     exit_post_vesting: Rate(exit_post_vesting),
+    //     multiple: PositiveFloat(multiple),
+    //     steps: PositiveInt(n as usize), // Assuming n is a positive integer
+    // };
     
+    // // let result = option_pricing::binomial_option_value(&params)?;
+    // let result = vec![0.0, 0.0]; // Placeholder for actual implementation
+    // Ok(result)
+
     let result = option_pricing::binomial_option_value(
-        share_price, strike_price, time_to_maturity, vesting_period,
-        risk_free, sigma, divrate,
-        exit_pre_vesting, exit_post_vesting,
-        multiple,
-        n as i32)?;
+        // OptionParameters {
+            share_price, strike_price, time_to_maturity, vesting_period,
+            risk_free, sigma, divrate,
+            exit_pre_vesting, exit_post_vesting,
+            multiple,
+            n as i32)?;
+            // };
     Ok(result)
 }
 
@@ -113,7 +119,7 @@ fn option_value_optimal(
 fn option_value_non_optimal(
     share_price: f64,
     strike_price: f64,
-    t: f64,
+    time_to_maturity: f64,
     vesting_period: f64,
     risk_free: f64,
     sigma: f64,
@@ -124,10 +130,12 @@ fn option_value_non_optimal(
     n: f64,
 ) -> Result<Vec<f64>, Box<dyn std::error::Error>> {
     let result = option_pricing::binomial_option_value(
-        share_price, strike_price, t, vesting_period,
-        risk_free, sigma, divrate,
-        exit_pre_vesting, exit_post_vesting,
-        multiple,
-        n as i32)?;
+        // OptionParameters {
+            share_price, strike_price, time_to_maturity, vesting_period,
+            risk_free, sigma, divrate,
+            exit_pre_vesting, exit_post_vesting,
+            multiple,
+            n as i32)?;
+            // };
     Ok(result)
 }

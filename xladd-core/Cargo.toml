@@ -17,7 +17,14 @@ log = "0.4.8"
 thiserror = "2.0.12"
 serde = "^1"
 serde_derive = "^1"
-widestring = "*"
-winapi = { version = "*", features = ["winuser", "libloaderapi", "debugapi"] }
+# widestring = "*"
+# winapi = { version = "*", features = ["winuser", "libloaderapi", "debugapi"] }
 inventory = "0.3"
-libc = "0.2.174"
+libc = "0.2.164"
+windows = { version = "0.61.3", features = [
+    "Win32_System_LibraryLoader",
+    "Win32_System_Diagnostics_Debug",
+    "Win32_System_Com",
+    # "Win32_System_OleAutomation",
+    "Win32_UI_WindowsAndMessaging"
+] }

@@ -259,7 +259,7 @@ pub fn xl_func(attr: TokenStream, input: TokenStream) -> TokenStream {
         
         // Excel wrapper function
         #[unsafe(no_mangle)]
-        extern "stdcall" fn #xl_fn_name(#(#xl_args),*) -> xladd_core::xlcall::LPXLOPER12 {
+        extern "system" fn #xl_fn_name(#(#xl_args),*) -> xladd_core::xlcall::LPXLOPER12 {
             // Convert arguments from Excel types to Rust types
             #(#arg_conversions)*
             

@@ -19,5 +19,5 @@ log = "0.4.8"
 xladd-core = { path = "xladd-core" }
 xladd-derive = { path = "xladd-derive" }
 # xladd-derive = { path = "xladd-derive" , features=["use_ndarray"] }
-thiserror = "2.0.12"
+thiserror = "2.0.15"
 
