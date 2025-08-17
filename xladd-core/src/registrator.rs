@@ -24,9 +24,8 @@ pub struct FunctionRegistration {
     pub arg_infos: &'static [ArgInfo],  // Changed from Vec<ArgInfo>
 }
 
-/// Allow xlls to register their exported functions with Excel so they can be
-/// used in a spreadsheet or macro. These functions can only be called from
-/// within an implementation of xlAutoOpen.
+/// Allow xlls to register their exported functions with Excel. These functions
+///  can only be called from within an implementation of xlAutoOpen.
 pub struct Reg {
     dll_name: Variant,
 }

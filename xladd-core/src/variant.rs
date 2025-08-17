@@ -14,6 +14,10 @@ use std::convert::TryFrom;
 use std::f64;
 use thiserror::Error;
 
+
+const XL_MAX_COLS: i32 = 16_384;
+const XL_MAX_ROWS: i32 = 1_048_576;
+
 // ####################################################################################################################
 // 1. CORE TYPES AND CONSTANTS
 // ####################################################################################################################
@@ -50,6 +54,8 @@ const xltypeMulti_xlbitDLLFree: u32 = xltypeMulti | xlbitDLLFree;
 
 /// Variant is a wrapper around a Excel's XLOPER12 union type. It can contain a string, i32
 /// or f64, or a two dimensional of any mixture of these.
+
+#[repr(transparent)] // guarantees same layout as inner field
 pub struct Variant(XLOPER12);
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -107,7 +113,7 @@ impl Variant {
         columns = columns.max(2);
 
         // If the array is too big, return an error string
-        if rows > 1_048_576 || columns > 16384 {
+        if rows as i32 > XL_MAX_ROWS || columns as i32 > XL_MAX_COLS {
             return Self::from("#ERR resulting array is too big");
         }
 
@@ -178,7 +184,7 @@ impl Variant {
         // We have an array that we need to transpose. Create a vector of
         // Variant to contain the elements.
         let dim = self.dim();
-        if dim.0 > 1_048_576 || dim.1 > 16384 {
+        if dim.0 as i32 > XL_MAX_ROWS || dim.1 as i32 > XL_MAX_COLS {
             return Self::from("#ERR resulting array is too big");
         }
 
@@ -944,7 +950,7 @@ impl From<Vec<f64>> for Variant {
                 array: Xloper12Array {
                     lparray,
                     rows: 1,
-                    columns: std::cmp::min(16383, columns as i32),
+                    columns: std::cmp::min(XL_MAX_COLS, columns as i32),
                 },
             },
         })
@@ -970,8 +976,8 @@ impl From<Vec<&str>> for Variant {
                 val: Xloper12Value {
                     array: Xloper12Array {
                         lparray,
-                        rows: std::cmp::min(1_048_575, rows as i32),
-                        columns: std::cmp::min(16383, columns as i32),
+                        rows: std::cmp::min(XL_MAX_ROWS, rows as i32),
+                        columns: std::cmp::min(XL_MAX_COLS, columns as i32),
                     },
                 },
             })
@@ -1002,8 +1008,8 @@ impl From<Vec<(String, f64)>> for Variant {
                 val: Xloper12Value {
                     array: Xloper12Array {
                         lparray,
-                        rows: std::cmp::min(1_048_575, rows as i32),
-                        columns: std::cmp::min(16383, columns as i32),
+                        rows: std::cmp::min(XL_MAX_ROWS, rows as i32),
+                        columns: std::cmp::min(XL_MAX_COLS, columns as i32),
                     },
                 },
             })
@@ -1031,8 +1037,8 @@ impl From<Vec<(Variant, f64)>> for Variant {
                 val: Xloper12Value {
                     array: Xloper12Array {
                         lparray,
-                        rows: std::cmp::min(1_048_575, rows as i32),
-                        columns: std::cmp::min(16383, columns as i32),
+                        rows: std::cmp::min(XL_MAX_ROWS, rows as i32),
+                        columns: std::cmp::min(XL_MAX_COLS, columns as i32),
                     },
                 },
             })
@@ -1048,9 +1054,12 @@ impl From<Vec<(Variant, f64)>> for Variant {
 ///  that we pass back to Excel. Excel will clean up the pointer after us
 impl From<Variant> for LPXLOPER12 {
     fn from(v: Variant) -> LPXLOPER12 {
-        Box::into_raw(Box::new(v)) as LPXLOPER12
+        // allocate Variant and return its pointer (as *mut xloper12)
+        let p: *mut Variant = Box::into_raw(Box::new(v));
+        p.cast() // *mut XLOPER12
     }
 }
+
 
 // --------------------------------------------------------------------------------------------------------------------
 // 9. UTILITY FUNCTIONS

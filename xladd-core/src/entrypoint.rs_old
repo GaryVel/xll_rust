@@ -4,33 +4,38 @@
 use crate::registrator::debug_print;
 use crate::variant::Variant;
 use crate::xlcall::{xlFree, xlretFailed, LPXLOPER12, XLOPER12};
-
-use std::{ffi::CStr, mem, ptr, sync::Once};
+use std::ffi::CStr;
+use std::mem;
+use std::ptr;
 use widestring::U16CString;
-use windows::Win32::Foundation::HMODULE;
-use windows::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress};
-use windows::core::{PCWSTR, PCSTR};
+use winapi::shared::minwindef::HMODULE;
+use winapi::um::libloaderapi::{GetModuleHandleW, GetProcAddress};
+use std::sync::Once;
 use libc::c_int;
 
 const EXCEL12ENTRYPT: &[u8] = b"MdCallBack12\0";
 const XLCALL32DLL: &str = "XLCall32";
 const XLCALL32ENTRYPT: &[u8] = b"GetExcel12EntryPt\0";
-
-type EXCEL12PROC = extern "system" fn(
+type EXCEL12PROC = extern "stdcall" fn(
     xlfn: c_int,
     count: c_int,
     rgpxloper12: *const LPXLOPER12,
     xloper12res: LPXLOPER12,
 ) -> c_int;
-type FNGETEXCEL12ENTRYPT = extern "system" fn() -> usize;
+type FNGETEXCEL12ENTRYPT = extern "stdcall" fn() -> usize;
 
 static INIT: Once = Once::new();
-static mut XLCALL_HMODULE: HMODULE = HMODULE(std::ptr::null_mut());
+static mut XLCALL_HMODULE: HMODULE = ptr::null_mut();
 static mut PEXCEL12: usize = 0;
 
 /// Call into Excel, passing a function number as defined in xlcall and a slice
-/// of Variant, and returning a Variant. Consult Excel SDK documentation to find
-/// the number and type of parameters and the expected result.
+/// of Variant, and returning a Variant. To find out the number and type of
+/// parameters and the expected result, please consult the Excel SDK documentation.
+///
+/// Note that this is a slightly inefficient call, in that it allocates a vector
+/// of pointers. For example, if you have a single argument, it is faster to invoke
+/// the single arg version.
+
 pub fn excel12(xlfn: u32, opers: &mut [Variant]) -> Variant {
     debug_print(&format!("FuncID:{}, {} args)", xlfn, opers.len()));
     let mut args: Vec<LPXLOPER12> = Vec::with_capacity(opers.len());
@@ -49,30 +54,33 @@ pub fn excel12(xlfn: u32, opers: &mut [Variant]) -> Variant {
     }
 }
 
+pub fn excel12_1(xlfn: u32, mut oper: Variant) -> Variant {
+    let mut result = Variant::default();
+    excel12v(xlfn as i32, result.as_mut_xloper(), &[oper.as_mut_xloper()]);
+    result
+}
+
 fn fetch_excel12_entry_pt() {
     INIT.call_once(|| {
         unsafe {
-            if XLCALL_HMODULE.0.is_null() {
+            if XLCALL_HMODULE.is_null() {
                 let wcstr = U16CString::from_str(XLCALL32DLL).unwrap();
-                XLCALL_HMODULE = GetModuleHandleW(PCWSTR(wcstr.as_ptr())).unwrap_or(HMODULE(std::ptr::null_mut()));
-                if !XLCALL_HMODULE.0.is_null() {
+                XLCALL_HMODULE = GetModuleHandleW(wcstr.as_ptr());
+                if !XLCALL_HMODULE.is_null() {
                     let cstr = CStr::from_bytes_with_nul(XLCALL32ENTRYPT).unwrap();
-                    if let Some(proc_addr) = GetProcAddress(XLCALL_HMODULE, PCSTR(cstr.as_ptr().cast())) {
-                        let entry_pt: usize = proc_addr as usize;
-                        if entry_pt != 0 {
-                            PEXCEL12 = mem::transmute::<usize, FNGETEXCEL12ENTRYPT>(entry_pt)();
-                        }
+                    let entry_pt: usize = GetProcAddress(XLCALL_HMODULE, cstr.as_ptr()) as usize;
+                    if entry_pt != 0 {
+                        PEXCEL12 = mem::transmute::<usize, FNGETEXCEL12ENTRYPT>(entry_pt)();
                     }
                 }
             }
 
             if PEXCEL12 == 0 {
-                XLCALL_HMODULE = GetModuleHandleW(PCWSTR::null()).unwrap_or(HMODULE(std::ptr::null_mut()));
-                if !XLCALL_HMODULE.0.is_null() {
+                XLCALL_HMODULE = GetModuleHandleW(ptr::null());
+                if !XLCALL_HMODULE.is_null() {
                     let cstr = CStr::from_bytes_with_nul(EXCEL12ENTRYPT).unwrap();
-                    if let Some(proc_addr) = GetProcAddress(XLCALL_HMODULE, PCSTR(cstr.as_ptr().cast())) {
-                        PEXCEL12 = proc_addr as usize;
-                    }
+
+                    PEXCEL12 = GetProcAddress(XLCALL_HMODULE, cstr.as_ptr()) as usize;
                 }
             }
         }
